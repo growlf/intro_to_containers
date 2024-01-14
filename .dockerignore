@@ -4,3 +4,6 @@
 
 # Ignore logs
 *.log
+
+# Ignnore database files
+*.db
