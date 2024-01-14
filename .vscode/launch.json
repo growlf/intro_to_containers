@@ -15,6 +15,18 @@
             ],
             "jinja": true,
             "justMyCode": true
+        },
+        {
+            "name": "Python: FastAPI with CoPilot",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "copiloting:app",
+                "--reload"
+            ],
+            "jinja": true,
+            "justMyCode": true
         }
     ]
 }
