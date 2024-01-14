@@ -1,0 +1,6 @@
+# Ignore git and cache directories
+.git
+.cache
+
+# Ignore logs
+*.log
