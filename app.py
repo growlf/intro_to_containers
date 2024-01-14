@@ -1,12 +1,20 @@
-from datetime import datetime
+#stdlib
 from decimal import Decimal
+from datetime import datetime
+from typing import List, Union
+from contextlib import asynccontextmanager
+
+#3rd party
 from pydantic import BaseModel
-from sqlalchemy.orm import selectinload
 from sqlmodel import  SQLModel, Session, select, create_engine
 from sqlmodel import Field, Relationship
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import RedirectResponse
+
 from faker import Faker
-from typing import List, Union
+
+from sqlalchemy.orm import selectinload
 
 #Define model classes Customer and Order, and their base classes
 #Base classes are used for input and output validation
@@ -49,30 +57,46 @@ engine = create_engine(sqlite_url, echo=True)
 SQLModel.metadata.create_all(engine)
 
 #Sample data
-fake = Faker()
-with Session(engine) as sesh:
-    for customer in (Customer(name = fake.name()
-                    ,address = fake.address()
-                    ,email = fake.ascii_safe_email())
-                    for i in range(10)):
-        sesh.add(customer)
-    sesh.commit()
+def seed_data():
+    fake = Faker()
+    with Session(engine) as sesh:
+        for customer in (Customer(name = fake.name()
+                        ,address = fake.address()
+                        ,email = fake.ascii_safe_email())
+                        for i in range(10)):
+            sesh.add(customer)
+        sesh.commit()
 
-with Session(engine) as sesh:
-    for customer in sesh.exec(select(Customer)).all():
-        for order in (Order(name = fake.text()
-                            ,cost = fake.pydecimal(2,2)
-                            ,customer_id = customer.id)
-                            for i in range(3)):
-            sesh.add(order)
-    sesh.commit()
+    with Session(engine) as sesh:
+        for customer in sesh.exec(select(Customer)).all():
+            for order in (Order(name = fake.text()
+                                ,cost = fake.pydecimal(2,2)
+                                ,customer_id = customer.id)
+                                for i in range(3)):
+                sesh.add(order)
+        sesh.commit()
+
+#Setup lifespan to seed data on startup and shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    #startup
+    seed_data()
+    yield
+    #shutdown
+    print("Shutting down")
 
 #Setup App
-app = FastAPI()
-app.title = "Hello World!"
-app.description = "Carpe Diem"
+app = FastAPI(lifespan=lifespan)
+app.title = "Intro to FastAPI"
+app.description = """Welcome to the FastAPI demo!
+\n You can use the interactive OpenAPI interface to test the API by clicking on the "Try it out" button under each route"""
 
 #Define Routes
+#redirect / to /docs for swagger UI
+@app.get("/", include_in_schema=False)
+async def redirect_to_docs():
+    return RedirectResponse(url='/docs', status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
 @app.get("/get-customers/", status_code = 200, tags=["customer"])
 async def get_customers(offset: int = None, limit: int = None) -> List[Customer]:
     #Use offsets and limits to page through results
@@ -86,7 +110,7 @@ async def get_customers(offset: int = None, limit: int = None) -> List[Customer]
         results = sesh.exec(sql).all()
         return results
 
-@app.get("/get-customer-by-id/", status_code = 200, tags=["customer"])
+@app.get("/get-customer-by-id/{id}", status_code = 200, tags=["customer"])
 async def get_customer_by_id(id: int) -> Customer:
     with Session(engine) as sesh:
         customer = sesh.get(Customer, id)
@@ -145,7 +169,7 @@ async def update_order(order: Order) -> Order:
         order = sesh.get(Order, order.id)
         return order
     
-@app.get("/get-customer-orders/", status_code = 200, response_model=List[Order], tags=["order"])
+@app.get("/get-orders-by-customer-id/", status_code = 200, response_model=List[Order], tags=["order"])
 async def get_customer_orders(id: int) -> List[Order]:
     with Session(engine) as sesh:
         sql = select(Order).where(Order.customer_id == id)
