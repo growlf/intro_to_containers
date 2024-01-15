@@ -1,7 +1,7 @@
 #stdlib
 from decimal import Decimal
 from datetime import datetime
-from typing import List, Union
+from typing import List, Optional, Union
 from contextlib import asynccontextmanager
 
 #3rd party
@@ -16,27 +16,21 @@ from faker import Faker
 
 from sqlalchemy.orm import selectinload
 
-#Define model classes Customer and Order, and their base classes
-#Base classes are used for input and output validation
-#Model classes are used for database interaction
-#Relationships are defined in the model classes
-
-#A customer can have multiple orders
-
+#Define model classes
+#Base classes are used for input validation. 
+#If a field is not required, it can have a default value
+#add foreign keys to base classes to allow for input validation
 class OrderBase(BaseModel):
     name: str
     cost: Decimal
     customer_id: int
-    class Config:
-        orm_mode = True
 
 class CustomerBase(BaseModel):
     name: str
-    address: str
-    email: str
-    class Config:
-        orm_mode = True
+    address: str = ""
+    email: str = ""
 
+#SQLModel classes are used for database interaction and add id fields and relationships
 class Customer(CustomerBase, SQLModel, table=True):
     __tablename__ = "customers"
     id: int = Field(default=None, primary_key=True)
@@ -48,6 +42,7 @@ class Order(OrderBase, SQLModel, table=True):
     customer_id: int = Field(default = None, foreign_key="customers.id")
     customer: Customer = Relationship(back_populates="orders")
 
+#Read classes are used to include relationships in the response
 class CustomerRead(CustomerBase):
     orders: List[Order] = []
 
